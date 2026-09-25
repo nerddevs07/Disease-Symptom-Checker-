@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Symptom Checker</title>
+<style>
+:root{
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  --bg:#F5F7F6;
+  --surface:#FFFFFF;
+  --text:#16242A;
+  --muted:#5B6E70;
+  --accent:#2F6E5B;
+  --accent-contrast:#FFFFFF;
+  --border:#DCE3E0;
+  --chip-bg:#EAEFEC;
+  --chip-text:#16242A;
+  --warn-bg:#FBF1E4;
+  --warn-border:#D8B27C;
+  --warn-text:#7A4E12;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#101817; --surface:#182422; --text:#E6EEEC; --muted:#93A6A3;
+    --accent:#4FA88C; --accent-contrast:#08120F; --border:#25332F;
+    --chip-bg:#1C2926; --chip-text:#E6EEEC;
+    --warn-bg:#2A2013; --warn-border:#6B4E22; --warn-text:#E8C88C;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#101817; --surface:#182422; --text:#E6EEEC; --muted:#93A6A3;
+  --accent:#4FA88C; --accent-contrast:#08120F; --border:#25332F;
+  --chip-bg:#1C2926; --chip-text:#E6EEEC;
+  --warn-bg:#2A2013; --warn-border:#6B4E22; --warn-text:#E8C88C;
+}
+*{box-sizing:inherit;}
+html{scroll-padding-top:env(safe-area-inset-top,0px);}
+body{margin:0;background:var(--bg);color:var(--text);font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;line-height:1.5;}
+.wrap{max-width:740px;margin:0 auto;padding:2.25rem 1.25rem 2rem;}
+header h1{font-size:1.7rem;font-weight:700;margin:0 0 .35rem;display:flex;align-items:center;gap:.5rem;}
+header p{color:var(--muted);margin:0 0 1.25rem;font-size:.97rem;max-width:52ch;}
+.disclaimer{background:var(--warn-bg);border:1px solid var(--warn-border);color:var(--warn-text);padding:.8rem 1rem;border-radius:10px;font-size:.86rem;margin-bottom:1.5rem;}
+.search{width:100%;padding:.65rem .9rem;border-radius:10px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:.95rem;margin-bottom:1.4rem;}
+.search:focus{outline:2px solid var(--accent);outline-offset:1px;}
+.group{margin-bottom:1.2rem;}
+.group h3{font-size:.95rem;font-weight:600;color:var(--accent);margin:0 0 .55rem;}
+.chip-grid{display:flex;flex-wrap:wrap;gap:.5rem;}
+.chip{border:1px solid var(--border);background:var(--chip-bg);color:var(--chip-text);padding:.45rem .85rem;border-radius:999px;font-size:.85rem;cursor:pointer;transition:background .15s,color .15s,border-color .15s;}
+.chip:hover{border-color:var(--accent);}
+.chip.selected{background:var(--accent);border-color:var(--accent);color:var(--accent-contrast);font-weight:600;}
+.actions{position:sticky;bottom:0;background:var(--bg);display:flex;align-items:center;gap:.75rem;padding:1rem 0 calc(1rem + env(safe-area-inset-bottom,0px));margin-top:.25rem;border-top:1px solid var(--border);}
+#count{color:var(--muted);font-size:.85rem;flex:1;}
+button.primary{background:var(--accent);color:var(--accent-contrast);border:none;padding:.65rem 1.2rem;border-radius:10px;font-size:.9rem;font-weight:600;cursor:pointer;}
+button.primary:disabled{opacity:.5;cursor:not-allowed;}
+button.ghost{background:transparent;color:var(--muted);border:1px solid var(--border);padding:.65rem 1rem;border-radius:10px;font-size:.9rem;cursor:pointer;}
+.results{margin-top:1.5rem;}
+.results h2{font-size:1.1rem;margin:0 0 .9rem;}
+.result-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:.9rem 1rem;margin-bottom:.7rem;}
+.result-head{display:flex;justify-content:space-between;align-items:baseline;gap:.5rem;margin-bottom:.5rem;}
+.result-name{font-weight:600;}
+.result-pct{color:var(--accent);font-size:.85rem;font-weight:600;white-space:nowrap;}
+.bar-track{height:6px;background:var(--chip-bg);border-radius:999px;overflow:hidden;margin-bottom:.55rem;}
+.bar-fill{height:100%;background:var(--accent);border-radius:999px;}
+.matched-list{margin:0;color:var(--muted);font-size:.82rem;}
+.empty{color:var(--muted);font-size:.92rem;}
+.note{color:var(--muted);font-size:.78rem;margin-top:1rem;}
+footer{color:var(--muted);font-size:.75rem;text-align:center;margin-top:2rem;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>🩺 Symptom Checker</h1>
+    <p>Select what you're feeling, then see which conditions commonly share those symptoms.</p>
+  </header>
+  <div class="disclaimer">This is an educational tool, not a medical diagnosis. If you have severe symptoms such as chest pain, trouble breathing, or sudden confusion, get emergency care right away.</div>
+  <input class="search" id="search" type="text" placeholder="Filter symptoms" />
+  <div id="grid"></div>
+  <div class="actions">
+    <span id="count">0 symptoms selected</span>
+    <button class="ghost" id="resetBtn" type="button">Reset</button>
+    <button class="primary" id="checkBtn" type="button" disabled>Check symptoms</button>
+  </div>
+  <div class="results" id="results" hidden></div>
+  <footer>This tool compares your selections to common symptom patterns. It isn't a substitute for professional medical advice.</footer>
+</div>
+<script>
+const GROUPS = {
+  "General": ["Fever","Chills","Fatigue","Body aches","Sweating","Unexplained weight loss","Weight gain"],
+  "Respiratory": ["Cough","Sore throat","Runny nose","Nasal congestion","Sneezing","Shortness of breath","Wheezing","Facial pain or pressure","Loss of taste or smell","Difficulty swallowing"],
+  "Digestive": ["Nausea","Vomiting","Diarrhea","Abdominal pain","Loss of appetite","Constipation"],
+  "Skin": ["Rash","Itching","Dry skin","Pale skin"],
+  "Head & neurological": ["Headache","Dizziness","Blurred vision","Sensitivity to light"],
+  "Heart & circulation": ["Chest pain","Heart palpitations","Tremors"],
+  "Mental & sleep": ["Anxiety","Insomnia","Restlessness"],
+  "Metabolic & urinary": ["Increased thirst","Frequent urination","Painful urination","Cold intolerance","Heat intolerance"],
+  "Other": ["Ear pain","Swollen glands","Joint pain"]
+};
+
+const CONDITIONS = [
+  {name:"Common Cold", symptoms:["Runny nose","Nasal congestion","Sneezing","Sore throat","Cough","Fatigue"]},
+  {name:"Influenza (Flu)", symptoms:["Fever","Chills","Body aches","Joint pain","Fatigue","Headache","Cough","Sore throat"]},
+  {name:"COVID-19", symptoms:["Fever","Cough","Fatigue","Loss of taste or smell","Shortness of breath","Sore throat","Body aches"]},
+  {name:"Migraine", symptoms:["Headache","Sensitivity to light","Nausea","Dizziness","Blurred vision"]},
+  {name:"Seasonal Allergies", symptoms:["Sneezing","Runny nose","Itching","Nasal congestion","Sore throat"]},
+  {name:"Gastroenteritis (Stomach Bug)", symptoms:["Nausea","Vomiting","Diarrhea","Abdominal pain","Fever","Loss of appetite"]},
+  {name:"Urinary Tract Infection", symptoms:["Painful urination","Frequent urination","Abdominal pain","Fever"]},
+  {name:"Strep Throat", symptoms:["Sore throat","Fever","Swollen glands","Difficulty swallowing","Headache"]},
+  {name:"Sinusitis", symptoms:["Nasal congestion","Headache","Facial pain or pressure","Cough","Fatigue"]},
+  {name:"Bronchitis", symptoms:["Cough","Fatigue","Chest pain","Wheezing","Shortness of breath","Sore throat"]},
+  {name:"Generalized Anxiety", symptoms:["Anxiety","Insomnia","Heart palpitations","Restlessness","Fatigue"]},
+  {name:"Food Poisoning", symptoms:["Nausea","Vomiting","Diarrhea","Abdominal pain","Fever"]},
+  {name:"Hypothyroidism", symptoms:["Fatigue","Cold intolerance","Weight gain","Constipation","Dry skin"]},
+  {name:"Hyperthyroidism", symptoms:["Unexplained weight loss","Heat intolerance","Heart palpitations","Tremors","Sweating","Anxiety"]},
+  {name:"Iron-Deficiency Anemia", symptoms:["Fatigue","Dizziness","Pale skin","Shortness of breath","Headache"]},
+  {name:"Type 2 Diabetes (early signs)", symptoms:["Increased thirst","Frequent urination","Fatigue","Blurred vision","Unexplained weight loss"]},
+  {name:"Mononucleosis", symptoms:["Fatigue","Sore throat","Swollen glands","Fever","Headache"]},
+  {name:"Ear Infection", symptoms:["Ear pain","Fever","Headache","Fatigue"]},
+  {name:"Allergic Reaction", symptoms:["Rash","Itching","Shortness of breath","Nasal congestion"]},
+  {name:"Chickenpox (viral rash illness)", symptoms:["Rash","Itching","Fever","Fatigue"]}
+];
+
+const selected = new Set();
+const grid = document.getElementById('grid');
+const countEl = document.getElementById('count');
+const checkBtn = document.getElementById('checkBtn');
+const resetBtn = document.getElementById('resetBtn');
+const searchEl = document.getElementById('search');
+const resultsEl = document.getElementById('results');
+
+function renderGrid(filter){
+  const f = (filter||'').trim().toLowerCase();
+  grid.innerHTML = '';
+  Object.keys(GROUPS).forEach(group=>{
+    const items = GROUPS[group].filter(s=>s.toLowerCase().includes(f));
+    if(items.length===0) return;
+    const wrap = document.createElement('div');
+    wrap.className='group';
+    const h = document.createElement('h3');
+    h.textContent = group;
+    wrap.appendChild(h);
+    const cg = document.createElement('div');
+    cg.className='chip-grid';
+    items.forEach(s=>{
+      const b = document.createElement('button');
+      b.type='button';
+      b.className='chip'+(selected.has(s)?' selected':'');
+      b.textContent=s;
+      b.setAttribute('aria-pressed', selected.has(s)?'true':'false');
+      b.addEventListener('click',()=>{
+        if(selected.has(s)){ selected.delete(s); } else { selected.add(s); }
+        renderGrid(searchEl.value);
+        updateCount();
+      });
+      cg.appendChild(b);
+    });
+    wrap.appendChild(cg);
+    grid.appendChild(wrap);
+  });
+}
+
+function updateCount(){
+  const n = selected.size;
+  countEl.textContent = n + (n===1?' symptom selected':' symptoms selected');
+  checkBtn.disabled = n===0;
+}
+
+function checkSymptoms(){
+  const results = CONDITIONS.map(c=>{
+    const matched = c.symptoms.filter(s=>selected.has(s));
+    const unionSize = new Set([...c.symptoms, ...selected]).size;
+    const score = matched.length ? matched.length/unionSize : 0;
+    return {name:c.name, matched:matched, score:score};
+  }).filter(r=>r.matched.length>0)
+    .sort((a,b)=> b.score-a.score || b.matched.length-a.matched.length)
+    .slice(0,5);
+
+  resultsEl.hidden = false;
+  if(results.length===0){
+    resultsEl.innerHTML = '<p class="empty">No close matches here. Please check in with a healthcare professional about what you\'re experiencing.</p>';
+    return;
+  }
+  let html = '<h2>Possible related conditions</h2>';
+  results.forEach(r=>{
+    const pct = Math.round(r.score*100);
+    html += '<div class="result-card"><div class="result-head"><span class="result-name">'+r.name+'</span><span class="result-pct">'+pct+'% match</span></div><div class="bar-track"><div class="bar-fill" style="width:'+pct+'%"></div></div><p class="matched-list">Matches: '+r.matched.join(', ')+'</p></div>';
+  });
+  html += '<p class="note">This is a simplified educational estimate, not a diagnosis. Always consult a qualified healthcare professional for medical concerns.</p>';
+  resultsEl.innerHTML = html;
+  resultsEl.scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+
+function reset(){
+  selected.clear();
+  searchEl.value='';
+  renderGrid();
+  updateCount();
+  resultsEl.hidden=true;
+  resultsEl.innerHTML='';
+}
+
+searchEl.addEventListener('input', ()=>renderGrid(searchEl.value));
+checkBtn.addEventListener('click', checkSymptoms);
+resetBtn.addEventListener('click', reset);
+
+renderGrid();
+updateCount();
+</script>
+</body>
+</html>
